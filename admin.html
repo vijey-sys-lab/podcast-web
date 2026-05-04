@@ -1,0 +1,792 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>PWS Admin</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg"/>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=Space+Mono:wght@400;700&family=Inter:wght@300;400;500&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg:       #060608;
+      --surface:  #0c0c10;
+      --surface2: #13131a;
+      --purple:   #6c3de8;
+      --purple-l: #8b5cf6;
+      --purple-d: #4c1d95;
+      --pink:     #ec4899;
+      --gold:     #f59e0b;
+      --cream:    #faf5ff;
+      --muted:    #6b7280;
+      --muted2:   #9ca3af;
+      --border:   rgba(139,92,246,0.22);
+      --border2:  rgba(139,92,246,0.08);
+      --red:      #ef4444;
+      --green:    #22c55e;
+    }
+    html { scroll-behavior: smooth; }
+    body {
+      background: var(--bg);
+      color: var(--cream);
+      font-family: 'Inter', sans-serif;
+      min-height: 100vh;
+    }
+
+    /* bg blobs */
+    body::before {
+      content: '';
+      position: fixed; inset: 0; z-index: 0; pointer-events: none;
+      background:
+        radial-gradient(ellipse 60% 50% at 10% 20%, rgba(108,61,232,0.12) 0%, transparent 70%),
+        radial-gradient(ellipse 50% 40% at 90% 80%, rgba(236,72,153,0.08) 0%, transparent 70%);
+    }
+
+    /* ── LOGIN ── */
+    #login-screen {
+      position: relative; z-index: 10;
+      min-height: 100vh;
+      display: flex; align-items: center; justify-content: center;
+      flex-direction: column; gap: 2rem; padding: 2rem; text-align: center;
+    }
+    .login-logo-wrap { display: flex; align-items: center; gap: .8rem; justify-content: center; }
+    .login-logo-icon {
+      width: 52px; height: 52px; border-radius: 12px;
+      background: linear-gradient(135deg, var(--purple), var(--pink));
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 0 28px rgba(108,61,232,0.5);
+    }
+    .login-logo-icon svg { width: 32px; height: 32px; }
+    .login-logo-text {
+      font-family: 'Playfair Display', serif;
+      font-size: 1.6rem; font-weight: 700; color: var(--cream);
+    }
+    .login-logo-text em { font-style: normal; color: var(--purple-l); }
+    .login-tagline {
+      font-family: 'Space Mono', monospace;
+      font-size: .62rem; letter-spacing: .25em; text-transform: uppercase; color: var(--muted);
+    }
+    .login-box {
+      background: var(--surface);
+      border: 1px solid var(--border2); border-radius: 16px;
+      padding: 2.5rem 3rem; max-width: 380px; width: 100%;
+    }
+    .login-box h2 {
+      font-family: 'Playfair Display', serif;
+      font-size: 1.5rem; font-weight: 700; margin-bottom: .3rem;
+    }
+    .login-box p {
+      font-family: 'Space Mono', monospace;
+      font-size: .6rem; letter-spacing: .15em; text-transform: uppercase;
+      color: var(--muted); margin-bottom: 2rem;
+    }
+    .google-btn {
+      display: flex; align-items: center; justify-content: center; gap: .8rem;
+      width: 100%; padding: .9rem 1.5rem;
+      background: #fff; border: none; border-radius: 8px;
+      color: #333; font-family: 'Space Mono', monospace;
+      font-size: .68rem; letter-spacing: .1em; text-transform: uppercase;
+      cursor: pointer; transition: opacity .2s; font-weight: 700;
+    }
+    .google-btn:hover { opacity: .92; }
+    .google-btn svg { width: 18px; height: 18px; flex-shrink: 0; }
+    .login-error {
+      margin-top: 1rem; font-family: 'Space Mono', monospace;
+      font-size: .6rem; color: var(--red); letter-spacing: .08em; display: none;
+    }
+    .login-error.show { display: block; }
+
+    /* ── ADMIN LAYOUT ── */
+    #admin-screen { display: none; position: relative; z-index: 10; }
+
+    .admin-nav {
+      position: sticky; top: 0; z-index: 100;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 1rem 2rem;
+      background: rgba(6,6,8,0.85);
+      backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--border2);
+    }
+    .admin-brand { display: flex; align-items: center; gap: .7rem; text-decoration: none; }
+    .admin-brand-icon {
+      width: 34px; height: 34px; border-radius: 8px;
+      background: linear-gradient(135deg, var(--purple), var(--pink));
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 0 16px rgba(108,61,232,0.4);
+    }
+    .admin-brand-icon svg { width: 20px; height: 20px; }
+    .admin-brand-name {
+      font-family: 'Playfair Display', serif;
+      font-size: 1rem; font-weight: 700; color: var(--cream);
+    }
+    .admin-brand-name em { font-style: normal; color: var(--purple-l); }
+    .admin-brand-badge {
+      font-family: 'Space Mono', monospace;
+      font-size: .52rem; letter-spacing: .15em; text-transform: uppercase;
+      color: var(--muted); padding: .2rem .6rem;
+      border: 1px solid var(--border2); border-radius: 6px; margin-left: .4rem;
+    }
+
+    .nav-right { display: flex; align-items: center; gap: 1rem; }
+    .user-pill {
+      display: flex; align-items: center; gap: .6rem;
+      font-family: 'Space Mono', monospace;
+      font-size: .6rem; letter-spacing: .08em; color: var(--muted);
+    }
+    .user-avatar {
+      width: 28px; height: 28px; border-radius: 50%;
+      border: 2px solid var(--purple-l); object-fit: cover;
+    }
+    .nav-btn {
+      padding: .45rem 1rem; border-radius: 6px;
+      font-family: 'Space Mono', monospace;
+      font-size: .58rem; letter-spacing: .1em; text-transform: uppercase;
+      cursor: pointer; transition: all .2s; text-decoration: none;
+    }
+    .nav-btn-outline {
+      background: transparent; border: 1px solid var(--border);
+      color: var(--purple-l);
+    }
+    .nav-btn-outline:hover { background: rgba(139,92,246,0.1); }
+    .nav-btn-danger {
+      background: transparent; border: 1px solid rgba(239,68,68,0.3);
+      color: var(--red);
+    }
+    .nav-btn-danger:hover { background: rgba(239,68,68,0.1); }
+
+    /* ── MAIN GRID ── */
+    .admin-main {
+      max-width: 1200px; margin: 0 auto;
+      padding: 2rem 2rem 5rem;
+      display: grid; grid-template-columns: 400px 1fr; gap: 2rem; align-items: start;
+    }
+    @media (max-width: 860px) { .admin-main { grid-template-columns: 1fr; } }
+
+    /* ── PANELS ── */
+    .panel {
+      background: var(--surface); border: 1px solid var(--border2);
+      border-radius: 16px; overflow: hidden;
+    }
+    .panel-header {
+      padding: 1.1rem 1.5rem; border-bottom: 1px solid var(--border2);
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .panel-title {
+      font-family: 'Space Mono', monospace;
+      font-size: .62rem; letter-spacing: .2em; text-transform: uppercase; color: var(--purple-l);
+    }
+    .panel-body { padding: 1.5rem; }
+
+    /* form */
+    label {
+      display: block; font-family: 'Space Mono', monospace;
+      font-size: .58rem; letter-spacing: .15em; text-transform: uppercase;
+      color: var(--muted); margin-bottom: .35rem; margin-top: 1rem;
+    }
+    label:first-child { margin-top: 0; }
+    input, textarea, select {
+      width: 100%; padding: .65rem .9rem;
+      background: var(--surface2); border: 1px solid var(--border2);
+      border-radius: 8px; color: var(--cream);
+      font-family: 'Inter', sans-serif; font-size: .9rem; font-weight: 300;
+      outline: none; transition: border-color .2s;
+    }
+    input:focus, textarea:focus { border-color: var(--purple-l); }
+    textarea { resize: vertical; min-height: 60px; }
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+
+    /* thumbnail */
+    .thumb-wrap {
+      width: 100%; aspect-ratio: 16/9; border-radius: 8px;
+      border: 1px solid var(--border2);
+      background: linear-gradient(135deg, #1a0a3a, #0d0d20);
+      overflow: hidden; margin-top: .4rem;
+      display: flex; align-items: center; justify-content: center;
+    }
+    #thumb-canvas { width: 100% !important; height: auto !important; display: block; }
+
+    /* buttons */
+    .btn-row { display: flex; gap: .8rem; margin-top: 1.3rem; }
+    .btn {
+      padding: .72rem 1.3rem; border-radius: 8px;
+      font-family: 'Space Mono', monospace;
+      font-size: .62rem; letter-spacing: .1em; text-transform: uppercase;
+      cursor: pointer; transition: all .2s; border: none; flex: 1;
+    }
+    .btn-save {
+      background: linear-gradient(135deg, var(--purple), var(--purple-l));
+      color: #fff; box-shadow: 0 4px 16px rgba(108,61,232,0.35);
+    }
+    .btn-save:hover { opacity: .88; }
+    .btn-save:disabled { opacity: .4; cursor: not-allowed; }
+    .btn-gen {
+      width: 100%; margin-top: .6rem;
+      background: rgba(139,92,246,0.08);
+      border: 1px solid var(--border); color: var(--purple-l);
+    }
+    .btn-gen:hover { background: rgba(139,92,246,0.16); }
+    .btn-cancel {
+      background: transparent; border: 1px solid var(--border2);
+      color: var(--muted); flex: none; padding: .72rem 1rem;
+    }
+    .btn-cancel:hover { border-color: var(--red); color: var(--red); }
+
+    .status-msg {
+      font-family: 'Space Mono', monospace;
+      font-size: .6rem; letter-spacing: .1em;
+      padding: .7rem 1rem; border-radius: 8px;
+      margin-top: .8rem; display: none;
+    }
+    .status-msg.success { display: block; background: rgba(34,197,94,0.1); color: var(--green); border: 1px solid rgba(34,197,94,0.2); }
+    .status-msg.error   { display: block; background: rgba(239,68,68,0.1);  color: var(--red);   border: 1px solid rgba(239,68,68,0.2); }
+
+    /* episode list */
+    .ep-list { display: flex; flex-direction: column; gap: .75rem; }
+    .ep-item {
+      background: var(--surface2); border: 1px solid var(--border2);
+      border-radius: 12px; display: flex; gap: 0; overflow: hidden;
+      transition: border-color .2s;
+    }
+    .ep-item:hover { border-color: var(--border); }
+    .ep-item-thumb {
+      width: 120px; flex-shrink: 0;
+      background: linear-gradient(135deg, #1a0a3a, #0d0d20);
+      display: flex; align-items: center; justify-content: center;
+      font-family: 'Space Mono', monospace; font-size: .55rem; color: var(--muted);
+    }
+    .ep-item-thumb img { width: 100%; height: 100%; object-fit: cover; }
+    .ep-item-body { padding: .9rem 1rem; flex: 1; min-width: 0; }
+    .ep-item-num {
+      font-family: 'Space Mono', monospace;
+      font-size: .55rem; letter-spacing: .15em; text-transform: uppercase;
+      color: var(--purple-l); margin-bottom: .2rem;
+    }
+    .ep-item-title { font-family: 'Playfair Display', serif; font-size: 1rem; font-weight: 700; margin-bottom: .15rem; }
+    .ep-item-meta { font-size: .8rem; color: var(--muted); }
+    .ep-item-actions { display: flex; gap: .4rem; padding: .9rem; align-items: center; }
+    .icon-btn {
+      background: none; border: 1px solid var(--border2);
+      color: var(--muted); padding: .4rem .65rem; font-size: .8rem;
+      cursor: pointer; border-radius: 6px; transition: all .2s;
+    }
+    .icon-btn.edit:hover { border-color: var(--purple-l); color: var(--purple-l); }
+    .icon-btn.del:hover  { border-color: var(--red); color: var(--red); }
+
+    .empty-list {
+      text-align: center; padding: 3rem; color: var(--muted);
+      font-family: 'Space Mono', monospace; font-size: .65rem; letter-spacing: .1em;
+    }
+    .loading-spinner {
+      text-align: center; padding: 2rem;
+      font-family: 'Space Mono', monospace;
+      font-size: .6rem; letter-spacing: .15em; color: var(--muted);
+      animation: pulse 1.4s infinite;
+    }
+    @keyframes pulse { 0%,100%{opacity:.3} 50%{opacity:1} }
+  </style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="login-screen">
+  <div>
+    <div class="login-logo-wrap">
+      <div class="login-logo-icon">
+        <!-- PWS microphone icon -->
+        <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="11" y="3" width="10" height="16" rx="5" fill="white" opacity="0.9"/>
+          <path d="M6 16c0 5.523 4.477 10 10 10s10-4.477 10-10" stroke="white" stroke-width="2" stroke-linecap="round" fill="none" opacity="0.9"/>
+          <line x1="16" y1="26" x2="16" y2="30" stroke="white" stroke-width="2" stroke-linecap="round" opacity="0.9"/>
+          <line x1="12" y1="30" x2="20" y2="30" stroke="white" stroke-width="2" stroke-linecap="round" opacity="0.9"/>
+        </svg>
+      </div>
+      <span class="login-logo-text">Podcast <em>With Stories</em></span>
+    </div>
+    <div class="login-tagline" style="margin-top:.6rem">Admin Dashboard · Super Admin Only</div>
+  </div>
+  <div class="login-box">
+    <h2>Welcome Back</h2>
+    <p>Sign in to manage your episodes</p>
+    <button class="google-btn" id="google-login-btn">
+      <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+        <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+        <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/>
+        <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+      </svg>
+      Continue with Google
+    </button>
+    <div class="login-error" id="login-error">⚠ Access denied. Only the super admin can login.</div>
+  </div>
+</div>
+
+<!-- ADMIN -->
+<div id="admin-screen">
+  <nav class="admin-nav">
+    <div style="display:flex;align-items:center;gap:.5rem">
+      <a class="admin-brand" href="index.html" target="_blank">
+        <div class="admin-brand-icon">
+          <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect x="11" y="3" width="10" height="16" rx="5" fill="white" opacity="0.9"/>
+            <path d="M6 16c0 5.523 4.477 10 10 10s10-4.477 10-10" stroke="white" stroke-width="2" stroke-linecap="round" fill="none" opacity="0.9"/>
+            <line x1="16" y1="26" x2="16" y2="30" stroke="white" stroke-width="2" stroke-linecap="round" opacity="0.9"/>
+            <line x1="12" y1="30" x2="20" y2="30" stroke="white" stroke-width="2" stroke-linecap="round" opacity="0.9"/>
+          </svg>
+        </div>
+        <span class="admin-brand-name">Podcast <em>With Stories</em></span>
+      </a>
+      <span class="admin-brand-badge">Admin</span>
+    </div>
+    <div class="nav-right">
+      <div class="user-pill">
+        <img class="user-avatar" id="user-avatar" src="" alt=""/>
+        <span id="user-name"></span>
+      </div>
+      <a class="nav-btn nav-btn-outline" href="index.html" target="_blank">View Site ↗</a>
+      <button class="nav-btn nav-btn-danger" id="signout-btn">Sign Out</button>
+    </div>
+  </nav>
+
+  <div class="admin-main">
+
+    <!-- FORM -->
+    <div>
+      <div class="panel">
+        <div class="panel-header">
+          <span class="panel-title" id="form-title">Add New Episode</span>
+          <button class="btn btn-cancel" id="cancel-edit-btn" style="display:none">Cancel</button>
+        </div>
+        <div class="panel-body">
+          <div class="form-row">
+            <div>
+              <label>Episode Number *</label>
+              <input type="number" id="f-num" placeholder="1" min="1"/>
+            </div>
+            <div>
+              <label>Published Date</label>
+              <input type="date" id="f-date"/>
+            </div>
+          </div>
+          <label>Podcast Name *</label>
+          <input type="text" id="f-podcast" placeholder="Podcast With Stories"/>
+          <label>Speaker Name *</label>
+          <input type="text" id="f-speaker" placeholder="Ashi Kulwant Singh"/>
+          <label>Topic / Tagline</label>
+          <input type="text" id="f-topic" placeholder="Exclusive Interview & Inspiring Conversations"/>
+          <label>Video URL (Archive.org or Google Drive) *</label>
+          <input type="url" id="f-video" placeholder="https://ia600905.us.archive.org/…/video.mp4"/>
+          <label>Sponsored By</label>
+          <input type="text" id="f-sponsor" placeholder="DEVVERSE"/>
+
+          <label style="margin-top:1.3rem">Thumbnail Preview</label>
+          <div class="thumb-wrap">
+            <canvas id="thumb-canvas" width="1280" height="720"></canvas>
+          </div>
+          <button class="btn btn-gen" id="gen-thumb-btn">✦ Generate Thumbnail</button>
+
+          <div class="btn-row">
+            <button class="btn btn-save" id="save-btn">Save Episode</button>
+          </div>
+          <div class="status-msg" id="status-msg"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- EPISODES LIST -->
+    <div>
+      <div class="panel">
+        <div class="panel-header">
+          <span class="panel-title">All Episodes</span>
+          <span id="ep-count" style="font-family:'Space Mono',monospace;font-size:.58rem;color:var(--muted)"></span>
+        </div>
+        <div class="panel-body" style="padding:1rem">
+          <div id="episodes-list"><div class="loading-spinner">Loading…</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Firebase — NO Storage, thumbnails stored as base64 in Firestore -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+  import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged }
+    from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+  import { getFirestore, collection, addDoc, getDocs, doc, updateDoc, deleteDoc, orderBy, query, Timestamp }
+    from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+  const SUPER_ADMIN = 'vjysupermacy@gmail.com';
+
+  const app = initializeApp({
+    apiKey: "AIzaSyA-wk7PG924-vazzmf5RpzCNzKlArLXdds",
+    authDomain: "poodcast-e02da.firebaseapp.com",
+    projectId: "poodcast-e02da",
+    storageBucket: "poodcast-e02da.firebasestorage.app",
+    messagingSenderId: "27280570286",
+    appId: "1:27280570286:web:41f1f21d621fae888e7a3f"
+  });
+
+  const auth = getAuth(app);
+  const db   = getFirestore(app);
+  
+  function getFriendlyFirebaseError(err, action = 'complete this action') {
+    const code = err?.code || '';
+    const message = String(err?.message || '');
+    const lower = message.toLowerCase();
+    const isBlockedByClient = lower.includes('err_blocked_by_client') || lower.includes('blocked by client');
+
+    if (isBlockedByClient) {
+      return `Network request was blocked by a browser extension while trying to ${action}. Disable ad blocker/privacy extensions for this site and try again.`;
+    }
+
+    if (code === 'permission-denied') {
+      return `Permission denied while trying to ${action}. You are signed in, but Firestore security rules are blocking this operation.`;
+    }
+
+    if (code === 'unauthenticated') {
+      return `You are not authenticated. Please sign in again before you ${action}.`;
+    }
+
+    if (code === 'unavailable') {
+      return `Firestore is currently unreachable. Check your internet connection, then try again.`;
+    }
+
+    if (code === 'failed-precondition') {
+      return `Firestore rejected this request due to missing setup (for example, an index or rules mismatch).`;
+    }
+
+    return `Could not ${action}: ${message || 'Unknown error.'}`;
+  }
+
+  // ── AUTH ──
+  document.getElementById('google-login-btn').addEventListener('click', async () => {
+    try {
+      const result = await signInWithPopup(auth, new GoogleAuthProvider());
+      if (result.user.email !== SUPER_ADMIN) {
+        await signOut(auth);
+        document.getElementById('login-error').classList.add('show');
+      }
+    } catch(e) {
+      console.error(e);
+      document.getElementById('login-error').classList.add('show');
+    }
+  });
+
+  document.getElementById('signout-btn').addEventListener('click', () => signOut(auth));
+
+  onAuthStateChanged(auth, user => {
+    if (user && user.email === SUPER_ADMIN) {
+      document.getElementById('login-screen').style.display = 'none';
+      document.getElementById('admin-screen').style.display = 'block';
+      document.getElementById('user-name').textContent = user.displayName || user.email;
+      if (user.photoURL) document.getElementById('user-avatar').src = user.photoURL;
+      loadEpisodes();
+    } else {
+      document.getElementById('login-screen').style.display = 'flex';
+      document.getElementById('admin-screen').style.display = 'none';
+    }
+  });
+
+  // ── THUMBNAIL GENERATOR (canvas → base64, stored in Firestore) ──
+  function generateThumbnail(podcastName, speakerName, episodeNum, topic) {
+    const canvas = document.getElementById('thumb-canvas');
+    const ctx = canvas.getContext('2d');
+    const W = 1280, H = 720;
+    canvas.width = W; canvas.height = H;
+
+    // Background
+    const grad = ctx.createLinearGradient(0, 0, W, H);
+    grad.addColorStop(0, '#07071a');
+    grad.addColorStop(0.5, '#0d0d2b');
+    grad.addColorStop(1, '#050510');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, W, H);
+
+    // Purple glow
+    const glow1 = ctx.createRadialGradient(W*0.7, H*0.4, 0, W*0.7, H*0.4, 480);
+    glow1.addColorStop(0, 'rgba(108,61,232,0.22)');
+    glow1.addColorStop(1, 'transparent');
+    ctx.fillStyle = glow1;
+    ctx.fillRect(0, 0, W, H);
+
+    // Pink glow
+    const glow2 = ctx.createRadialGradient(W*0.1, H*0.8, 0, W*0.1, H*0.8, 350);
+    glow2.addColorStop(0, 'rgba(236,72,153,0.14)');
+    glow2.addColorStop(1, 'transparent');
+    ctx.fillStyle = glow2;
+    ctx.fillRect(0, 0, W, H);
+
+    // Concentric circles left
+    ctx.save();
+    ctx.translate(150, H/2);
+    for (let i = 0; i < 7; i++) {
+      ctx.strokeStyle = `rgba(139,92,246,${0.08 + i*0.025})`;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(0, 0, 55 + i*42, 0, Math.PI*2);
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    // Dot grid top-right
+    ctx.fillStyle = 'rgba(139,92,246,0.4)';
+    for (let r=0; r<4; r++) for (let c=0; c<5; c++) {
+      ctx.beginPath();
+      ctx.arc(W-185+c*20, 75+r*20, 3, 0, Math.PI*2);
+      ctx.fill();
+    }
+
+    // Mic icon top-right
+    ctx.save();
+    ctx.translate(W-105, 62);
+    ctx.strokeStyle = 'rgba(255,255,255,0.7)';
+    ctx.lineWidth = 2.5; ctx.lineCap = 'round';
+    // mic body
+    ctx.beginPath();
+    ctx.roundRect(-10, -22, 20, 30, [10]);
+    ctx.stroke();
+    // mic stand
+    ctx.beginPath();
+    ctx.arc(0, -5, 18, 0, Math.PI);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(0, 13); ctx.lineTo(0, 20);
+    ctx.moveTo(-8, 20); ctx.lineTo(8, 20);
+    ctx.stroke();
+    ctx.restore();
+
+    // Episode badge
+    const bx = 300, by = H-106, bw = 120, bh = 48;
+    ctx.save();
+    ctx.beginPath();
+    ctx.roundRect(bx, by, bw, bh, [8]);
+    const badgeGrad = ctx.createLinearGradient(bx, by, bx+bw, by+bh);
+    badgeGrad.addColorStop(0, '#6c3de8');
+    badgeGrad.addColorStop(1, '#ec4899');
+    ctx.fillStyle = badgeGrad;
+    ctx.fill();
+    ctx.restore();
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 22px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(`Eps ${episodeNum}`, bx + bw/2, by + 32);
+
+    // Main title
+    ctx.textAlign = 'left';
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 88px sans-serif';
+    ctx.fillText('Podcast With', 290, 265);
+    ctx.fillText('Stories', 290, 370);
+
+    // Speaker name
+    ctx.font = 'italic 34px Georgia, serif';
+    ctx.fillStyle = 'rgba(255,255,255,0.88)';
+    ctx.fillText('Ft. ' + speakerName, 465, H-90);
+
+    // Topic
+    ctx.font = '21px sans-serif';
+    ctx.fillStyle = 'rgba(255,255,255,0.55)';
+    ctx.fillText(topic || 'Exclusive Interview &', 465, H-55);
+    if (!topic) ctx.fillText('Inspiring Conversations', 465, H-28);
+
+    // Bottom gradient line
+    const line = ctx.createLinearGradient(0, H-4, W, H-4);
+    line.addColorStop(0, 'transparent');
+    line.addColorStop(0.3, '#8b5cf6');
+    line.addColorStop(0.7, '#ec4899');
+    line.addColorStop(1, 'transparent');
+    ctx.fillStyle = line;
+    ctx.fillRect(0, H-4, W, 4);
+
+    // Compress to JPEG at 60% quality to keep Firestore doc small (~80-100KB)
+    return canvas.toDataURL('image/jpeg', 0.6);
+  }
+
+  let currentThumbDataUrl = null;
+
+  document.getElementById('gen-thumb-btn').addEventListener('click', () => {
+    const n = document.getElementById('f-podcast').value || 'Podcast With Stories';
+    const s = document.getElementById('f-speaker').value || 'Guest Speaker';
+    const e = document.getElementById('f-num').value || '1';
+    const t = document.getElementById('f-topic').value || '';
+    currentThumbDataUrl = generateThumbnail(n, s, e, t);
+  });
+
+  // Auto-preview as user types
+  ['f-podcast','f-speaker','f-num','f-topic'].forEach(id => {
+    document.getElementById(id).addEventListener('input', () => {
+      if (document.getElementById('f-speaker').value.trim()) {
+        const n = document.getElementById('f-podcast').value || 'Podcast With Stories';
+        const s = document.getElementById('f-speaker').value;
+        const e = document.getElementById('f-num').value || '1';
+        const t = document.getElementById('f-topic').value || '';
+        currentThumbDataUrl = generateThumbnail(n, s, e, t);
+      }
+    });
+  });
+
+  // ── SAVE (thumbnail as base64 in Firestore, NO Storage) ──
+  let editingId = null;
+
+  document.getElementById('save-btn').addEventListener('click', async () => {
+    const btn    = document.getElementById('save-btn');
+    const status = document.getElementById('status-msg');
+    const num    = parseInt(document.getElementById('f-num').value);
+    const podcast  = document.getElementById('f-podcast').value.trim();
+    const speaker  = document.getElementById('f-speaker').value.trim();
+    const video    = document.getElementById('f-video').value.trim();
+
+    if (!num || !podcast || !speaker || !video) {
+      status.className = 'status-msg error';
+      status.textContent = '⚠ Fill in Episode Number, Podcast Name, Speaker, and Video URL.';
+      return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = 'Saving…';
+    status.className = 'status-msg';
+
+    try {
+      // Store thumbnail as base64 string directly in the Firestore document
+      // No Firebase Storage needed — no CORS issues!
+      const thumbnailBase64 = currentThumbDataUrl || '';
+
+      const dateVal = document.getElementById('f-date').value;
+      const publishedDate = dateVal
+        ? new Date(dateVal).toLocaleDateString('en-US', {year:'numeric',month:'long',day:'numeric'})
+        : new Date().toLocaleDateString('en-US', {year:'numeric',month:'long',day:'numeric'});
+
+      const data = {
+        episodeNumber: num,
+        podcastName:   podcast,
+        speakerName:   speaker,
+        topic:         document.getElementById('f-topic').value.trim(),
+        videoUrl:      video,
+        sponsoredBy:   document.getElementById('f-sponsor').value.trim(),
+        publishedDate,
+        thumbnailUrl:  thumbnailBase64,   // base64 data URL stored here
+        updatedAt:     Timestamp.now()
+      };
+
+      if (editingId) {
+        await updateDoc(doc(db, 'episodes', editingId), data);
+        status.className = 'status-msg success';
+        status.textContent = '✓ Episode updated!';
+      } else {
+        data.createdAt = Timestamp.now();
+        await addDoc(collection(db, 'episodes'), data);
+        status.className = 'status-msg success';
+        status.textContent = '✓ Episode saved!';
+      }
+      resetForm();
+      loadEpisodes();
+    } catch(e) {
+      console.error(e);
+      status.className = 'status-msg error';
+      status.textContent = '⚠ ' + getFriendlyFirebaseError(e, editingId ? 'update this episode' : 'save this episode');
+    }
+
+    btn.disabled = false;
+    btn.textContent = editingId ? 'Update Episode' : 'Save Episode';
+  });
+
+  function resetForm() {
+    editingId = null;
+    ['f-num','f-podcast','f-speaker','f-topic','f-video','f-sponsor','f-date'].forEach(id => {
+      document.getElementById(id).value = '';
+    });
+    currentThumbDataUrl = null;
+    const ctx = document.getElementById('thumb-canvas').getContext('2d');
+    ctx.clearRect(0, 0, 1280, 720);
+    document.getElementById('form-title').textContent  = 'Add New Episode';
+    document.getElementById('save-btn').textContent    = 'Save Episode';
+    document.getElementById('cancel-edit-btn').style.display = 'none';
+    document.getElementById('status-msg').className    = 'status-msg';
+  }
+
+  document.getElementById('cancel-edit-btn').addEventListener('click', resetForm);
+
+  // ── LOAD EPISODES ──
+  async function loadEpisodes() {
+    const list = document.getElementById('episodes-list');
+    list.innerHTML = '<div class="loading-spinner">Loading episodes…</div>';
+    try {
+      const snap = await getDocs(query(collection(db,'episodes'), orderBy('episodeNumber','asc')));
+      document.getElementById('ep-count').textContent = snap.size + ' episode' + (snap.size!==1?'s':'');
+      if (snap.empty) {
+        list.innerHTML = '<div class="empty-list">No episodes yet. Add your first one!</div>';
+        return;
+      }
+      list.innerHTML = '';
+      snap.forEach(docSnap => {
+        const ep = docSnap.data();
+        const item = document.createElement('div');
+        item.className = 'ep-item';
+        item.innerHTML = `
+          <div class="ep-item-thumb">
+            ${ep.thumbnailUrl
+              ? `<img src="${ep.thumbnailUrl}" alt="" style="width:100%;height:100%;object-fit:cover"/>`
+              : `Ep ${ep.episodeNumber}`}
+          </div>
+          <div class="ep-item-body">
+            <div class="ep-item-num">Episode ${String(ep.episodeNumber).padStart(2,'0')}</div>
+            <div class="ep-item-title">Ft. ${ep.speakerName}</div>
+            <div class="ep-item-meta">${ep.podcastName}${ep.sponsoredBy?' · '+ep.sponsoredBy:''}</div>
+          </div>
+          <div class="ep-item-actions">
+            <button class="icon-btn edit">✎</button>
+            <button class="icon-btn del">✕</button>
+          </div>`;
+        item.querySelector('.icon-btn.edit').addEventListener('click', () => startEdit(docSnap.id, ep));
+        item.querySelector('.icon-btn.del').addEventListener('click',  () => deleteEp(docSnap.id, ep.episodeNumber));
+        list.appendChild(item);
+      });
+    } catch(e) {
+      list.innerHTML = `<div class="empty-list" style="color:var(--red)">⚠ ${getFriendlyFirebaseError(e, 'load episodes')}</div>`;
+    }
+  }
+
+  function startEdit(id, ep) {
+    editingId = id;
+    document.getElementById('f-num').value    = ep.episodeNumber;
+    document.getElementById('f-podcast').value = ep.podcastName || '';
+    document.getElementById('f-speaker').value = ep.speakerName || '';
+    document.getElementById('f-topic').value   = ep.topic || '';
+    document.getElementById('f-video').value   = ep.videoUrl || '';
+    document.getElementById('f-sponsor').value = ep.sponsoredBy || '';
+    document.getElementById('f-date').value    = '';
+    document.getElementById('form-title').textContent   = `Edit Episode ${ep.episodeNumber}`;
+    document.getElementById('save-btn').textContent     = 'Update Episode';
+    document.getElementById('cancel-edit-btn').style.display = '';
+    document.getElementById('status-msg').className = 'status-msg';
+    // Show existing thumbnail on canvas
+    if (ep.thumbnailUrl) {
+      currentThumbDataUrl = ep.thumbnailUrl;
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.getElementById('thumb-canvas');
+        canvas.width = 1280; canvas.height = 720;
+        canvas.getContext('2d').drawImage(img, 0, 0, 1280, 720);
+      };
+      img.src = ep.thumbnailUrl;
+    }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  async function deleteEp(id, num) {
+    if (!confirm(`Delete Episode ${num}? This cannot be undone.`)) return;
+    const status = document.getElementById('status-msg');
+    try {
+      await deleteDoc(doc(db, 'episodes', id));
+      status.className = 'status-msg success';
+      status.textContent = `✓ Episode ${num} deleted.`;
+      loadEpisodes();
+    } catch (e) {
+      console.error(e);
+      status.className = 'status-msg error';
+      status.textContent = '⚠ ' + getFriendlyFirebaseError(e, 'delete this episode');
+    }
+  }
+</script>
+</body>
+</html>
