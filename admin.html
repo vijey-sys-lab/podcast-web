@@ -283,6 +283,50 @@
       animation: pulse 1.4s infinite;
     }
     @keyframes pulse { 0%,100%{opacity:.3} 50%{opacity:1} }
+
+    /* drag-and-drop reorder */
+    .ep-item { cursor: grab; user-select: none; }
+    .ep-item:active { cursor: grabbing; }
+    .ep-item.dragging {
+      opacity: .45; border-color: var(--purple-l);
+      box-shadow: 0 0 18px rgba(139,92,246,0.35);
+    }
+    .ep-item.drag-over {
+      border-color: var(--pink);
+      box-shadow: 0 0 14px rgba(236,72,153,0.3);
+    }
+    .drag-handle {
+      display: flex; align-items: center; justify-content: center;
+      padding: 0 .5rem 0 .75rem; color: var(--muted); font-size: 1rem;
+      cursor: grab; flex-shrink: 0;
+    }
+    .drag-handle:active { cursor: grabbing; }
+    .reorder-bar {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: .75rem; margin-bottom: .75rem; padding: .6rem .8rem;
+      background: rgba(139,92,246,0.06); border: 1px solid var(--border2);
+      border-radius: 8px;
+    }
+    .reorder-hint {
+      font-family: 'Space Mono', monospace;
+      font-size: .56rem; letter-spacing: .1em; color: var(--muted);
+    }
+    .btn-save-order {
+      padding: .45rem 1rem; border-radius: 6px;
+      font-family: 'Space Mono', monospace;
+      font-size: .56rem; letter-spacing: .1em; text-transform: uppercase;
+      cursor: pointer; transition: all .2s;
+      background: linear-gradient(135deg, var(--purple), var(--purple-l));
+      color: #fff; border: none;
+      box-shadow: 0 2px 10px rgba(108,61,232,0.3);
+    }
+    .btn-save-order:hover { opacity: .85; }
+    .btn-save-order:disabled { opacity: .4; cursor: not-allowed; }
+    .order-saved-msg {
+      font-family: 'Space Mono', monospace; font-size: .56rem;
+      color: var(--green); letter-spacing: .08em; display: none;
+    }
+    .order-saved-msg.show { display: inline; }
   </style>
 </head>
 <body>
@@ -400,6 +444,13 @@
           <span id="ep-count" style="font-family:'Space Mono',monospace;font-size:.58rem;color:var(--muted)"></span>
         </div>
         <div class="panel-body" style="padding:1rem">
+          <div class="reorder-bar" id="reorder-bar" style="display:none">
+            <span class="reorder-hint">⠿ Drag episodes to reorder</span>
+            <div style="display:flex;align-items:center;gap:.6rem">
+              <span class="order-saved-msg" id="order-saved-msg">✓ Saved!</span>
+              <button class="btn-save-order" id="save-order-btn">Save Order</button>
+            </div>
+          </div>
           <div id="episodes-list"><div class="loading-spinner">Loading…</div></div>
         </div>
       </div>
@@ -412,7 +463,7 @@
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
   import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged }
     from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-  import { getFirestore, collection, addDoc, getDocs, doc, updateDoc, deleteDoc, orderBy, query, Timestamp }
+  import { getFirestore, collection, addDoc, getDocs, doc, updateDoc, deleteDoc, orderBy, query, Timestamp, writeBatch }
     from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
   const SUPER_ADMIN = 'vjysupermacy@gmail.com';
@@ -674,6 +725,8 @@
         status.textContent = '✓ Episode updated!';
       } else {
         data.createdAt = Timestamp.now();
+        // New episodes go to bottom of display order by default
+        data.displayOrder = Date.now();
         await addDoc(collection(db, 'episodes'), data);
         status.className = 'status-msg success';
         status.textContent = '✓ Episode saved!';
@@ -707,44 +760,135 @@
   document.getElementById('cancel-edit-btn').addEventListener('click', resetForm);
 
   // ── LOAD EPISODES ──
+  // Stores { id, data } for all loaded episodes so we can reorder without re-fetching
+  let episodeRows = [];
+
   async function loadEpisodes() {
     const list = document.getElementById('episodes-list');
     list.innerHTML = '<div class="loading-spinner">Loading episodes…</div>';
     try {
+      // Order by displayOrder first (if set), fall back to episodeNumber
       const snap = await getDocs(query(collection(db,'episodes'), orderBy('episodeNumber','asc')));
       document.getElementById('ep-count').textContent = snap.size + ' episode' + (snap.size!==1?'s':'');
       if (snap.empty) {
         list.innerHTML = '<div class="empty-list">No episodes yet. Add your first one!</div>';
+        document.getElementById('reorder-bar').style.display = 'none';
         return;
       }
-      list.innerHTML = '';
-      snap.forEach(docSnap => {
-        const ep = docSnap.data();
-        const item = document.createElement('div');
-        item.className = 'ep-item';
-        item.innerHTML = `
-          <div class="ep-item-thumb">
-            ${ep.thumbnailUrl
-              ? `<img src="${ep.thumbnailUrl}" alt="" style="width:100%;height:100%;object-fit:cover"/>`
-              : `Ep ${ep.episodeNumber}`}
-          </div>
-          <div class="ep-item-body">
-            <div class="ep-item-num">Episode ${String(ep.episodeNumber).padStart(2,'0')}</div>
-            <div class="ep-item-title">Ft. ${ep.speakerName}</div>
-            <div class="ep-item-meta">${ep.podcastName}${ep.sponsoredBy?' · '+ep.sponsoredBy:''}</div>
-          </div>
-          <div class="ep-item-actions">
-            <button class="icon-btn edit">✎</button>
-            <button class="icon-btn del">✕</button>
-          </div>`;
-        item.querySelector('.icon-btn.edit').addEventListener('click', () => startEdit(docSnap.id, ep));
-        item.querySelector('.icon-btn.del').addEventListener('click',  () => deleteEp(docSnap.id, ep.episodeNumber));
-        list.appendChild(item);
+
+      // Build row array, sort by displayOrder if present
+      episodeRows = [];
+      snap.forEach(docSnap => episodeRows.push({ id: docSnap.id, ep: docSnap.data() }));
+      episodeRows.sort((a, b) => {
+        const ao = (a.ep.displayOrder != null) ? a.ep.displayOrder : a.ep.episodeNumber;
+        const bo = (b.ep.displayOrder != null) ? b.ep.displayOrder : b.ep.episodeNumber;
+        return ao - bo;
       });
+
+      document.getElementById('reorder-bar').style.display = 'flex';
+      renderEpisodeList();
     } catch(e) {
       list.innerHTML = `<div class="empty-list" style="color:var(--red)">⚠ ${getFriendlyFirebaseError(e, 'load episodes')}</div>`;
     }
   }
+
+  function renderEpisodeList() {
+    const list = document.getElementById('episodes-list');
+    list.innerHTML = '';
+    episodeRows.forEach(({ id, ep }, idx) => {
+      const item = document.createElement('div');
+      item.className = 'ep-item';
+      item.draggable = true;
+      item.dataset.idx = idx;
+      item.innerHTML = `
+        <div class="drag-handle" title="Drag to reorder">⠿</div>
+        <div class="ep-item-thumb">
+          ${ep.thumbnailUrl
+            ? `<img src="${ep.thumbnailUrl}" alt="" style="width:100%;height:100%;object-fit:cover"/>`
+            : `Ep ${ep.episodeNumber}`}
+        </div>
+        <div class="ep-item-body">
+          <div class="ep-item-num">Episode ${String(ep.episodeNumber).padStart(2,'0')}</div>
+          <div class="ep-item-title">Ft. ${ep.speakerName}</div>
+          <div class="ep-item-meta">${ep.podcastName}${ep.sponsoredBy?' · '+ep.sponsoredBy:''}</div>
+        </div>
+        <div class="ep-item-actions">
+          <button class="icon-btn edit">✎</button>
+          <button class="icon-btn del">✕</button>
+        </div>`;
+
+      item.querySelector('.icon-btn.edit').addEventListener('click', () => startEdit(id, ep));
+      item.querySelector('.icon-btn.del').addEventListener('click',  () => deleteEp(id, ep.episodeNumber));
+
+      // Drag events
+      item.addEventListener('dragstart', handleDragStart);
+      item.addEventListener('dragover',  handleDragOver);
+      item.addEventListener('drop',      handleDrop);
+      item.addEventListener('dragend',   handleDragEnd);
+
+      list.appendChild(item);
+    });
+  }
+
+  // ── DRAG & DROP ──
+  let dragSrcIdx = null;
+
+  function handleDragStart(e) {
+    dragSrcIdx = parseInt(this.dataset.idx);
+    this.classList.add('dragging');
+    e.dataTransfer.effectAllowed = 'move';
+  }
+  function handleDragOver(e) {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    document.querySelectorAll('.ep-item').forEach(el => el.classList.remove('drag-over'));
+    this.classList.add('drag-over');
+  }
+  function handleDrop(e) {
+    e.preventDefault();
+    const targetIdx = parseInt(this.dataset.idx);
+    if (dragSrcIdx === null || dragSrcIdx === targetIdx) return;
+    // Reorder episodeRows array
+    const moved = episodeRows.splice(dragSrcIdx, 1)[0];
+    episodeRows.splice(targetIdx, 0, moved);
+    renderEpisodeList();
+    // Flash the save order button to prompt saving
+    document.getElementById('save-order-btn').style.background = 'linear-gradient(135deg,#ec4899,#6c3de8)';
+    setTimeout(() => {
+      document.getElementById('save-order-btn').style.background = '';
+    }, 800);
+  }
+  function handleDragEnd() {
+    document.querySelectorAll('.ep-item').forEach(el => {
+      el.classList.remove('dragging', 'drag-over');
+    });
+    dragSrcIdx = null;
+  }
+
+  // ── SAVE ORDER ──
+  document.getElementById('save-order-btn').addEventListener('click', async () => {
+    const btn = document.getElementById('save-order-btn');
+    const msg = document.getElementById('order-saved-msg');
+    btn.disabled = true;
+    btn.textContent = 'Saving…';
+    msg.classList.remove('show');
+    try {
+      const batch = writeBatch(db);
+      episodeRows.forEach(({ id }, idx) => {
+        batch.update(doc(db, 'episodes', id), { displayOrder: idx });
+      });
+      await batch.commit();
+      msg.classList.add('show');
+      setTimeout(() => msg.classList.remove('show'), 3000);
+    } catch(e) {
+      console.error(e);
+      const status = document.getElementById('status-msg');
+      status.className = 'status-msg error';
+      status.textContent = '⚠ ' + getFriendlyFirebaseError(e, 'save order');
+    }
+    btn.disabled = false;
+    btn.textContent = 'Save Order';
+  });
 
   function startEdit(id, ep) {
     editingId = id;
